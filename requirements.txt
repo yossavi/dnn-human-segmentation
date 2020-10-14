@@ -1,0 +1,4 @@
+opencv-python
+onnxruntime
+matplotlib
+sklearn
