@@ -15,44 +15,6 @@ from DeepLab import DeepLab, back_to_original_size, process_pred
 from Gluon import Gluon
 
 
-def laplacian_pyramid_blending(A, B, m, num_levels=6):
-    GA = A.copy()
-    GB = B.copy()
-    GM = m.copy()
-    gpA = [GA]
-    gpB = [GB]
-    gpM = [GM]
-    for i in range(num_levels):
-        GA = cv2.pyrDown(GA)
-        GB = cv2.pyrDown(GB)
-        GM = cv2.pyrDown(GM)
-        gpA.append(np.float32(GA))
-        gpB.append(np.float32(GB))
-        gpM.append(np.float32(GM))
-
-    lpA = [gpA[num_levels - 1]]
-    lpB = [gpB[num_levels - 1]]
-    gpMr = [gpM[num_levels - 1]]
-    for i in range(num_levels - 1, 0, -1):
-        LA = np.subtract(gpA[i - 1], cv2.pyrUp(gpA[i]))
-        LB = np.subtract(gpB[i - 1], cv2.pyrUp(gpB[i]))
-        lpA.append(LA)
-        lpB.append(LB)
-        gpMr.append(gpM[i - 1])  # also reverse the masks
-
-    LS = []
-    for la, lb, gm in zip(lpA, lpB, gpMr):
-        ls = la * gm + lb * (1.0 - gm)
-        LS.append(ls)
-
-    ls_ = LS[0]
-    for i in range(1, num_levels):
-        ls_ = cv2.pyrUp(ls_)
-        ls_ = ls_ + LS[i]
-
-    return ls_
-
-
 def get_charactistic_colors(img):
     kmeans = KMeans(n_clusters=10).fit(img.reshape((-1, 3)))
     centers = kmeans.cluster_centers_
@@ -94,49 +56,12 @@ def get_bg(path, size):
     return bg
 
 
-def blend_img_bg(img, bg, mask, num_levels=1):
+def blend_img_bg(img, bg, mask, blur_mask):
+    mask = np.expand_dims(cv2.blur(mask, (blur_mask, blur_mask), 0), 2)
     if bg is None:
         return np.concatenate((img, mask), axis=2)
-    if num_levels == 1:
-        return np.concatenate((img * mask + bg * (1 - mask), np.ones_like(mask)), axis=2)
-    else:
-        return laplacian_pyramid_blending(img, bg, np.transpose(np.squeeze(np.array([mask, mask, mask])), (1, 2, 0)),
-                                          num_levels=num_levels)
 
-
-def get_grad(img):
-    g = cv2.cvtColor((cv2.blur(img, (3, 3), 0) * 255).astype(np.uint8), cv2.COLOR_BGR2GRAY)
-    grads = np.sqrt(np.power(cv2.Sobel(g, cv2.CV_64F, 1, 0, ksize=3), 2) + np.power(
-        cv2.Sobel(g, cv2.CV_64F, 0, 1, ksize=3), 2))
-    return (grads - grads.min()) / (grads.max() - grads.min())
-
-
-def nearest_class(i, j, stop, mask, grads):
-    if stop == 1:
-        return 1, -1
-    if grads[i, j] > 0.2:
-        return 1, -1
-    if mask[i, j] == 0 or mask[i, j] == 1:
-        return 2, mask[i, j]
-    return 0, -1
-
-
-def clear_mask_by_grads(mask, grads):
-    ret = np.copy(mask)
-    for i in range(mask.shape[0]):
-        for j in range(mask.shape[1]):
-            if 1 > mask[i, j] > 0:
-                stop = np.zeros(4)
-                cls = np.zeros(4)
-                for t in range(30):
-                    stop[0], cls[0] = nearest_class(i + t, j, stop[0], mask, grads)
-                    stop[1], cls[1] = nearest_class(i, j + t, stop[1], mask, grads)
-                    stop[2], cls[2] = nearest_class(i - t, j, stop[2], mask, grads)
-                    stop[3], cls[3] = nearest_class(i, j - t, stop[3], mask, grads)
-                    if np.any(stop == 2):
-                        ret[i, j] = cls.max()
-                        break
-    return ret
+    return np.concatenate((img * mask + bg * (1 - mask), np.ones_like(mask)), axis=2)
 
 
 def plot_debug(img, bg_centers, fg_centers, pred, pred_th, bg_fg_sim_diff, mask, blend, grads):
@@ -157,16 +82,19 @@ def plot_debug(img, bg_centers, fg_centers, pred, pred_th, bg_fg_sim_diff, mask,
 
 
 COLOR_SIMILARITY_FACTOR = 0.5
+BLUR_MASK = 25
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser(description='People Segmentation')
-    argparser.add_argument('-m', '--model_name', type=str, help='Name of segmentation model',
+    argparser.add_argument('-m', '--model_name', type=str, help='Name of segmentation model, one of:' +
+                                                                '(xception65_ade20k_train, xception65_coco_voc_trainval, deeplab_resnet101_coco, deeplab_resnet152_voc)',
                            default="xception65_coco_voc_trainval")
     argparser.add_argument('-i', '--images_dir', type=str, help='Path to images files', default="images")
     argparser.add_argument('-o', '--output_dir', type=str, help='Path to output folder', default="output")
-    argparser.add_argument('-b', '--bg_blend', type=str, help='OPTIONAL: bg image to blend')
-    argparser.add_argument('-d', '--plot_debug', type=int, default=0)
-    argparser.add_argument('-s', '--output_size', type=int, default=2000)
+    argparser.add_argument('-b', '--bg_blend', type=str,
+                           help='OPTIONAL: bg image to blend. if None will plot transpernet png')
+    argparser.add_argument('-d', '--plot_debug', type=int, default=0, help='Is to plot debug image')
+    argparser.add_argument('-s', '--output_size', type=int, default=2000, help='Size of output image')
     args = argparser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -189,21 +117,11 @@ if __name__ == '__main__':
         height = int((img.shape[0] * scale / 2)) * 2
         img = cv2.resize(img, (width, height))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        print(img.shape)
 
         pred, small_img, padding, resize_properties = model.eval_pepole_and_animal(img)
         pred_th, pred_hesitant = process_pred(pred, padding, model.get_props()['th'])
         pred_th = remove_small_connected_componnets(pred_th)
-        # grads = get_grad(small_img)
-        # pred_th_clean = clear_mask_by_grads(pred_th, grads)
         pred_th_clean = pred_th
-
-        # fig, axs = plt.subplots(2, 2)
-        # axs[0, 0].imshow(pred)
-        # axs[0, 1].imshow(pred_th)
-        # axs[1, 0].imshow(pred_th_clean)
-        # axs[1, 1].imshow(grads)
-        # plt.show()
 
         small_img = small_img / 255.
         img = img / 255.
@@ -222,8 +140,9 @@ if __name__ == '__main__':
         mask = remove_small_connected_componnets(mask)
 
         bg = get_bg(args.bg_blend, img.shape[:-1][::-1])
-        blend = blend_img_bg(img, bg, np.expand_dims(cv2.blur(mask, (25, 25), 0), 2), num_levels=1)
-        cv2.imwrite(os.path.join(args.output_dir, filename + "_" + args.bg_blend.split('/')[-1] + ".png"),
+        blend = blend_img_bg(img, bg, mask, BLUR_MASK)
+        cv2.imwrite(os.path.join(args.output_dir, filename + "_" + (args.bg_blend.split('/')[
+                                                                        -1] if args.bg_blend is not None else "") + ".png"),
                     cv2.cvtColor((np.clip(blend, 0., 1.) * 255.).astype(np.uint8), cv2.COLOR_BGRA2RGBA))
 
         if args.plot_debug == 1:

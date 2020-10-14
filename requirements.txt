@@ -2,3 +2,5 @@ opencv-python
 onnxruntime
 matplotlib
 sklearn
+mxnet
+gluoncv
