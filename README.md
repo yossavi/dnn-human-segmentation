@@ -6,6 +6,8 @@ For segmentation refinement the algorithm composes two postprocessing steps:
 1. Assign pixels to either background or foreground using histograms similarity
 2. Remove small connected components
 
+*Currently, we support two models of deeplab using onnx that we created from the official freeze graph and two deeplab models using gluon-cv. It is optional to add more models with minor code changes.
+
 # Installation
 ```pip install -r requirements.txt```
 
