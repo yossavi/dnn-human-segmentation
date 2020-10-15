@@ -42,6 +42,6 @@ optional arguments:
 
 <img src="https://github.com/yossavi/dnn-human-segmentation/blob/main/images/0pp.jfif" width="300"> <img src="https://github.com/yossavi/dnn-human-segmentation/blob/main/out_xception65_coco_voc_trainval/0pp.jfif_pastel.png.png" width="300">
 
-<img src="https://github.com/yossavi/dnn-human-segmentation/blob/main/images/filipe-de-rodrigues-vetJrFdWesQ-unsplash.jpg" width="300"> <img src="https://github.com/yossavi/dnn-human-segmentation/blob/main/out_xception65_coco_voc_trainval/filipe-de-rodrigues-vetJrFdWesQ-unsplash.jpg_street.png.png" width="300">
+<img src="https://github.com/yossavi/dnn-human-segmentation/blob/main/images/filipe-de-rodrigues-vetJrFdWesQ-unsplash.jpg" width="300"> <img src="https://github.com/yossavi/dnn-human-segmentation/blob/main/out_xception65_coco_voc_trainval/filipe-de-rodrigues-vetJrFdWesQ-unsplash.jpg_gradient.png.png" width="300">
 
 <img src="https://github.com/yossavi/dnn-human-segmentation/blob/main/images/natasha-brazil-iFoMOlkWucI-unsplash.jpg" width="300"> <img src="https://github.com/yossavi/dnn-human-segmentation/blob/main/out_xception65_coco_voc_trainval/natasha-brazil-iFoMOlkWucI-unsplash.jpg_transparent.png.png" width="300">
